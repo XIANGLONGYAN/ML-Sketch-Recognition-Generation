@@ -51,7 +51,7 @@ class HParams:
         self.lr_min = 1e-6
         self.nThreads = 4
         self.epochs = 16
-        self.gpus = [2,3,4,5]
+        self.gpus = [1, 2]
         self.warmup_step = 4e3
 
         self.save_epoch_freq = 1

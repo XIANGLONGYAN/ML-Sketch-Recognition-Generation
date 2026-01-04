@@ -1,112 +1,148 @@
-# SketchKnitter
-![Python 3.6](https://img.shields.io/badge/python-3.6-green) ![Pytorch 1.6](https://img.shields.io/badge/pytorch-1.6-green) ![MIT License](https://img.shields.io/badge/licence-MIT-green) [![open issues](https://isitmaintained.com/badge/open/xduwq/sketchknitter.svg)](https://github.com/XDUWQ/SketchKnitter/issues)
+# SketchEdit: Editing Freehand Sketches at the Stroke-level
+This is the official implementation of the paper "SketchEdit: Editing Freehand Sketches at the Stroke-level", which was accepted for IJCAI-2024.
+You can edit freehand sketches by picking any strokes and modifying them to generate creative sketches without having to think about determining the position of the strokes.
 
-In this repository, you can find the PyTorch implementation of [SketchKnitter: Vectorized Sketch Generation with Diffusion Models](https://openreview.net/pdf?id=4eJ43EN2g6l), ICLR 2023, Spotlight.
+<img src="images/diffusion.jpg" width="1000" alt="Overview"/>
 
-_Authors_: [Qiang Wang](https://scholar.google.com/citations?user=lXyi3t4AAAAJ&hl=en), [Haoge Deng](https://github.com/Bitterdhg), [Yonggang Qi](https://qugank.github.io/), [Da Li](https://scholar.google.co.uk/citations?user=RPvaE3oAAAAJ&hl=en), [Yi-Zhe Song](https://scholar.google.co.uk/citations?hl=en&user=irZFP_AAAAAJ&view_op=list_works&sortby=pubdate). Beijing University of Posts and Telecommunications, Samsung AI Centre Cambridge, University of Surrey.
-
-> Abstract: We show vectorized sketch generation can be identified as a reversal of the stroke deformation process. This relationship was established by means of a diffusion model that learns data distributions over the stroke-point locations and pen states of real human sketches. Given randomly scattered stroke-points, sketch generation becomes a process of deformation-based denoising, where the generator rectifies positions of stroke points at each timestep to converge at a recognizable sketch. A key innovation was to embed recognizability into the reverse time diffusion process. It was observed that the estimated noise during the reversal process is strongly correlated with sketch classification accuracy. An auxiliary recurrent neural network (RNN) was consequently used to quantify recognizability during data sampling. It follows that, based on the recognizability scores, a sampling shortcut function can also be devised that renders better quality sketches with fewer sampling steps. Finally it is shown that the model can be easily extended to a conditional generation framework, where given incomplete and unfaithful sketches, it yields one that is more visually appealing and with higher recognizability.
-
-![Fig.1](https://github.com/XDUWQ/SketchKnitter/blob/main/images/overview.png)
-
-## Datasets
-Please go to the [QuickDraw official website](https://quickdraw.withgoogle.com/) to download the datasets. The class list used in the paper: `moon`, `airplane`, `fish`, `umbrella`, `train`, `spider`, `shoe`, `apple`, `lion`, `bus`, you can also replace it with any other category. Each category class is stored in its own file, and contains training/validation/test set sizes of 70000/2500/2500 examples.
-
-In addition to the QuickDraw dataset, you can train the model on any dataset, but please pay attention to organizing the dataset into vector format and packaging it into `.npz` file. In the case of less data sets, please pay attention to over-fitting. If you want to create your own dataset, you can follow the [official tutorial](https://github.com/magenta/magenta/tree/main/magenta/models/sketch_rnn#creating-your-own-dataset) of SketchRNN.
-
-## Installation
-The requirements of this repo can be found in [requirements.txt](https://github.com/XDUWQ/SketchKnitter/blob/main/requirements.txt).
-```bash
-conda create -n sketchknitter python=3.7
-conda activate sketchknitter
+# Installation
+```
+git clone https://github.com/CMACH508/SketchEdit/
+cd SketchEdit
 pip install -r requirements.txt
 ```
+# Preparing Dataset
+Download data from the [QuickDraw dataset](https://quickdraw.withgoogle.com/data) for the corresponding categories and storage these data to the './dataset/' fold.
 
-## Train and Inference
-
-### Haperparameters
-Here is a list of full options for the model:
-```bash
-lr,                   # learning rate.
-log_dir,              # save log path.
-dropout,              # dropout rate.
-use_fp16,             # whether to use mixed precision training.
-ema_rate,             # comma-separated list of EMA values
-category,             # list of category name to be trained.
-data_dir,             # the data sets path.
-use_ddim,             # choose whether to use DDIM or DDPM
-save_path,            # path to save vector results.
-pen_break,            # determines the experience value of stroke break.
-image_size,           # the max numbers of datasets.
-model_path,           # path to save the trained model checkpoint.
-class_cond,           # whether to use guidance technology.
-batch_size,           # batch size of training.
-emb_channels,         # Unet embedding channel numbers.
-num_channels,         # the numbers of channels in Unet backbone.
-out_channels,         # output channels in Unet. 
-save_interval,        # saving models interval.
-noise_schedule,       # the method of adding noise is linear by default.
-num_res_blocks,       # numbers of resnet blocks in Unet backbone.
-diffusion_steps,      # diffusion steps in the forward process.
-schedule_sampler,     # the schedule of sampler.
-fp16_scale_growth,    # the mixed precision scale growth.
-use_scale_shift_norm, # whether to use scale shift norm. 
+# Training
+```
+# The pretrained model of 17-category are provided in the './model_save/' fold. You can train your own dataset as follows.
+# Encoder and Decoder. We recommend using more categories.
+python -u Train.py
+# Noise predicetor U-Net.
+python -u Diffusion_Train.py
 ```
 
-### Train Example Usage:
-```bash
-bash train.sh
+# Evaluation
+```
+# Visualize the groudtruth sketches to './GroundTruth/' fold.
+python -u DrawAll.py
+# Reconstruct sketches with original stroke locations.
+python -u Inference.py
+# Reconstruct sketches with generated stroke locations.
+python -u Diffusion_Inference.py
+
+
+# Calculate metrics.
+cd evaluations
+python CLIP_score.py ../results/ ../GroundTruth/ --real_flag img --fake_flag img --device cuda
+python fid_score.py ../results/ ../GroundTruth/ --gpu 0
+python lpips_score.py --path1 ../results/ --path2 ../GroundTruth/
+python CLIP_score.py ../diffusion_results/ ../GroundTruth/ --real_flag img --fake_flag img --device cuda
+python fid_score.py ../diffusion_results/ ../GroundTruth/ --gpu 0
+python lpips_score.py --path1 ../diffusion_results/ --path2 ../GroundTruth/
 ```
 
-### Inference Example Usage:
-```bash
-bash sample.sh
+# Inference
+```
+# Record the strokes and their embeddings to './stroke/' fold.
+python -u Dataset.py
+python -u save_embedding.py
+
+# Replace strokes, inteplorate between strokes, and add strokes.
+# First, select the to be edited sketch and referenced sketch from the './GroundTruth/' fold and record their id, e.g. 7886 (the 386th sketches in the test set of 'angel') and 8196.
+# Second, according to the shape of strokes, select the corresponding id of to be edited strokes and referenced strokes from the './stroke/' fold.
+# Third, record the selected strokes' id, e.g. the 3rd stroke of 7886 and the 4th stroke of 8196. If you want to add a stroke, trying to select the first padding stroke as to be edited stroke, e.g. 5th stroke of 7886.
+# Finally, modify the parameters in "Replace.py" and run the code. You will find the creative sketches in './sample_tmp/' fold.
+
+python -u Replace.py
+
+The parameters in "Replace.py" are followings:
+    sketch_idx = 7886  # to be edited sketch
+    sketch_stroke_idx = [3] # to be edited strokes
+    template_idx =8196 # referenced sketch
+    template_stroke_idx = [4] # referenced strokes from referenced sketch
 ```
 
-## Visualization and Evaluation
-`sample.py` obtained results are stored in `.npz` file format, which can be directly used to calculate quantitative indicators such as `FID`, `IS`, `GS`, etc. You can also visualize the results for qualitative experiments, refer to the results of Google Brain for the [visualization method](https://github.com/magenta/magenta/tree/main/magenta/models/sketch_rnn).
-
-To calculate of `FID` and `IS`, refer to the [official code](https://github.com/topics/fid-score). The calculation of [Geometry Score(`GS`)](https://github.com/KhrulkovV/geometry-score) can directly use data in vector format, please go to the [official website](https://github.com/KhrulkovV/geometry-score) for instructions.
-
-## Results
-| **Simple** | FID↓ | GS↓ |  Prec↑ | Rec↑ |
-| :----:| :----: | :----: | :----: | :----: |
-| [SketchPix2seq](https://github.com/MarkMoHR/sketch-pix2seq) | 13.3 | 7.0 | 0.40 | 0.79 |
-| [SketchHealer](https://github.com/sgybupt/SketchHealer) | 10.3 | 5.9 | 0.45 | 0.81 |
-| [SketchRNN](https://github.com/magenta/magenta/tree/main/magenta/models/sketch_rnn) | 10.8 | 5.4 | 0.44 | 0.82 |
-| [Diff-HW](https://github.com/tcl9876/Diffusion-Handwriting-Generation) | 13.3 | 6.8 | 0.42 | 0.81 |
-| [SketchODE](https://github.com/dasayan05/sketchode) | 11.5 | 9.4 | 0.48 | 0.74 |
-| Ours (full 1000 steps)  |  **6.9** | **3.4** | **0.52** | **0.88** |
-| Ours (r-Shortcut, S=30)  | 7.4 | 3.9 | 0.47 | 0.87 |
-| Ours (Linear-DDIMs, S=30) | 11.9 | 6.4 | 0.38 | 0.81 |
-| Ours (Quadratic-DDIMs, S=30)  | 12.3 | 6.6 | 0.41 | 0.79 |
-| Ours (Abs)  | 20.7 | 12.1 | 0.18 | 0.55 |
-| Ours ([Point-Shuffle](https://github.com/qugank/sketch-lattice.github.io)) | 9.5 | 5.3 | 0.35 | 0.72 |
-| Ours ([Stroke-Shuffle](https://github.com/qugank/sketch-lattice.github.io)) |  8.2 | 3.8  | 0.36 | 0.74 |
-
-![Fig 4](https://github.com/XDUWQ/SketchKnitter/blob/main/images/4.png)
-
-Only part of the results are listed here. For more detailed results, please see [our paper and supplementary materials](https://openreview.net/pdf?id=4eJ43EN2g6l).
-
-## License
-This project is released under the [MIT License](https://github.com/XDUWQ/SketchKnitter/blob/main/LICENSE).
-
-## Citation
-If you find this repository useful for your research, please use the following.
+# Hyperparameters
 ```
-@inproceedings{wangsketchknitter,
-  title={SketchKnitter: Vectorized Sketch Generation with Diffusion Models},
-  author={Wang, Qiang and Deng, Haoge and Qi, Yonggang and Li, Da and Song, Yi-Zhe},
-  booktitle={The Eleventh International Conference on Learning Representations}
+class HParams:
+    def __init__(self):
+        self.data_location = './dataset/'#location of  of origin data
+        self.category = ["airplane.npz", "angel.npz", "alarm clock.npz", "apple.npz",
+                         "butterfly.npz", "belt.npz", "bus.npz",
+                         "cake.npz", "cat.npz", "clock.npz", "eye.npz", "fish.npz",
+                         "pig.npz", "sheep.npz", "spider.npz", "The Great Wall of China.npz",
+                         "umbrella.npz"]
+        self.model_save = "./model_save"
+        if not os.path.exists(self.model_save):
+            os.mkdir(self.model_save)
+        self.gpus=[0, 1,2,3, 4] #id of gpus
+
+        self.k = 40 # Components  of GMM
+        self.M = 20 # parameters of MDN
+
+        self.stroke_num = 25 # strokes length
+        self.stroke_length = 96 # points in a stroke
+
+        self.d_model = 128 # d_model in decoder
+        self.d_ffn = self.d_model*4
+
+        self.ud_model = 96 # d_model in unet
+        self.ud_ffn = self.ud_model*4
+
+
+        self.dropath = 0.1
+        self.batch_size = 200 # batch size of first stage training
+        self.ubatch_size = 768 # batch size of second stage training
+
+        self.warmup_step = 1000
+        self.epochs = 15 # epochs of first stage training
+        self.uepochs = 40 # epochs of second stage training
+
+        self.eta_min = 0.01
+        self.wKL = 0.0001
+        self.lr = 0.002 # learning rate of first stage training
+        self.ulr = 5e-4 # learning rate of second stage training
+
+        self.beta0 = 1e-4 # beta_0 of the diffusion scheduler
+        self.betaT = 0.02 # beta_T of the diffusion scheduler
+
+        self.min_lr = 0.00001
+        self.temperature = 0.001
+
+        self.ddim_step = 60 # 10 is ok
+
+        self.max_seq_length = 180 # points length
+        self.min_seq_length = 0
+```
+# Stroke Interpolation
+
+<img src="images/Edit.jpg" width="400" alt="Overview"/> 
+
+# Stroke Replacement
+
+<img src="images/EditComp.jpg" width="400" alt="Overview"/>
+
+# Adding Strokes
+
+<img src="images/AddStroke.jpg" width="400" alt="Overview"/>
+
+# Citation
+If you find this work useful for your research, please cite our paper:
+```
+@inproceedings{ijcai2024p493,
+  title     = {SketchEdit: Editing Freehand Sketches at the Stroke-Level},
+  author    = {Li, Tengjie and Tu, Shikui and Xu, Lei},
+  booktitle = {Proceedings of the Thirty-Third International Joint Conference on
+               Artificial Intelligence, {IJCAI-24}},
+  publisher = {International Joint Conferences on Artificial Intelligence Organization},
+  editor    = {Kate Larson},
+  pages     = {4461--4469},
+  year      = {2024},
+  month     = {8},
+  note      = {Main Track},
+  doi       = {10.24963/ijcai.2024/493},
+  url       = {https://doi.org/10.24963/ijcai.2024/493},
 }
 ```
 
-## Acknowledgements
-* [Quick, Draw!](https://github.com/googlecreativelab/quickdraw-dataset)
-* [guided-diffusion](https://github.com/openai/guided-diffusion)
-* [Sketch-R2CNN](https://github.com/craigleili/Sketch-R2CNN)
-* [PerceptualSimilarity](https://github.com/richzhang/PerceptualSimilarity)
-* [SketchLattice](https://github.com/qugank/sketch-lattice.github.io)
-
-## Contact
-If you have any questions about the code, please contact wanqqiang@bupt.edu.cn 

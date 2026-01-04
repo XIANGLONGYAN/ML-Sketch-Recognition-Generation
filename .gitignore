@@ -1,0 +1,63 @@
+cat > .gitignore <<'EOF'
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# ---- Logs / cache ----
+*.log
+runs/
+tb_logs/
+wandb/
+tensorboard/
+.cache/
+
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/
+
+# ---- Checkpoints / models (big) ----
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.bin
+*.safetensors
+*.onnx
+
+# ---- Numpy / datasets (big) ----
+*.npy
+*.npz
+*.hdf5
+*.h5
+
+# ---- Generated outputs (big) ----
+results/
+output/
+outputs/
+generated/
+gen_results/
+npy_results/
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# ---- Dataset folders (typical) ----
+Data/
+data/
+datasets/
+
+# ---- Archives ----
+*.zip
+*.tar
+*.tar.gz
+*.7z
+EOF

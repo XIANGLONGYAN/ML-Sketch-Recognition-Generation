@@ -14,6 +14,9 @@ import random
 from metrics import AverageMeter,accuracy
 from tqdm.auto import tqdm
 from Utils import get_cosine_schedule_with_warmup
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
 seed = 1010
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -115,12 +118,63 @@ class trainer:
         with open(model_name+'.pkl', 'wb') as f:
             pickle.dump(w_r, f)
         print("\nval_loss:{:.4f} | err1:{:.4f} | err5:{:.4f}".format(test_loss, test_err1, test_err5))
+        
+    def confusion_matrix_epoch(self, loader):
+        """
+        在给定数据集上计算混淆矩阵和每类准确率
+        返回:
+            cm: 混淆矩阵
+            per_class_acc: 每类准确率数组
+        """
+        self.model.eval()
+        all_preds = []
+        all_labels = []
 
+        for batch in tqdm(loader):
+            with torch.no_grad():
+                imgs = batch['sketch_img']
+                seqs = batch['sketch_points']
+                labels = batch['sketch_label']
 
+                if len(hp.gpus) > 0:
+                    imgs = imgs.cuda()
+                    seqs = seqs.cuda()
+                    labels = labels.cuda()
 
+                predicted, _, _, _ = self.model(imgs, seqs)
+                preds = predicted.argmax(dim=1)
+
+                all_preds.extend(preds.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+
+        # 计算混淆矩阵
+        cm = confusion_matrix(all_labels, all_preds)
+
+        # 计算每类准确率
+        per_class_acc = cm.diagonal() / cm.sum(axis=1)
+        per_class_acc = np.nan_to_num(per_class_acc)  # 避免除0错误
+
+        return cm, per_class_acc
+
+    def plot_confusion_matrix(self, cm, title="Confusion Matrix"):
+        """绘制混淆矩阵热力图"""
+        plt.figure(figsize=(12, 10))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title(title)
+        plt.show()
 
 print('''***********- Evaluating -*************''')
 params_total = sum(p.numel() for p in model.parameters())
 print("Number of parameter: %.2fM"%(params_total/1e6))
 Trainer = trainer(loss_f, model)
+cm, per_class_acc = Trainer.confusion_matrix_epoch(dataloader_Test)
+print(cm)
+np.save('confusion_matrix.npy', cm)
+
+# 打印每类准确率
+print("每类准确率：")
+for i, acc in enumerate(per_class_acc):
+    print(f"类别 {i:3d}: {acc:.4f}")
 Trainer.run(dataloader_Train, dataloader_Valid, dataloader_Test)

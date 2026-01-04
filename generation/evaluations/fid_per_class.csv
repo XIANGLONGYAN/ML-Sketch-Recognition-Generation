@@ -1,0 +1,11 @@
+category,n_fake,n_real,fid
+airplane.npz,2500,2500,8.391532
+angel.npz,2500,2500,8.376816
+alarm clock.npz,2500,2500,8.754869
+apple.npz,2500,2500,12.899263
+butterfly.npz,2500,2500,7.393048
+belt.npz,2500,2500,7.552057
+bus.npz,2500,2500,8.296269
+cake.npz,2500,2500,10.343570
+cat.npz,2500,2500,7.161877
+clock.npz,2500,2500,10.923038

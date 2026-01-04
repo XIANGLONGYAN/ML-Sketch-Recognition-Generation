@@ -228,6 +228,91 @@ class Dataset_TUBerlin(data.Dataset):
         return 'TUBerlin-{}-{}'.format(self.mode, self.fold_idx)
 
 
+# class Quickdraw414k(data.Dataset):
+
+#     def __init__(self, mode='Train'):
+#         self.mode = mode
+#         if mode == 'Train':
+#             sketch_list = "Data/QuickDraw414k/picture_files/tiny_train_set.txt"
+#             path_root1 = 'Data/QuickDraw414k/picture_files/train'
+#             path_root2 = 'Data/QuickDraw414k/coordinate_files/train'
+#         elif mode == 'Test':
+#             sketch_list = "Data/QuickDraw414k/picture_files/tiny_test_set.txt"
+#             path_root1 = 'Data/QuickDraw414k/picture_files/test'
+#             path_root2 = 'Data/QuickDraw414k/coordinate_files/test'
+#         elif mode == 'Valid':
+#             sketch_list = "Data/QuickDraw414k/picture_files/tiny_val_set.txt"
+#             path_root1 = 'Data/QuickDraw414k/picture_files/val'
+#             path_root2 = 'Data/QuickDraw414k/coordinate_files/val'
+
+#         with open(sketch_list) as sketch_url_file:
+#             sketch_url_list = sketch_url_file.readlines()
+#             self.img_urls = [os.path.join(path_root1, sketch_url.strip().split(' ')[
+#                 0]) for sketch_url in sketch_url_list]
+#             self.coordinate_urls = [os.path.join(path_root2, (sketch_url.strip(
+#             ).split(' ')[0]).replace('png', 'npy')) for sketch_url in sketch_url_list]
+
+#             self.labels = [int(sketch_url.strip().split(' ')[-1])
+#                            for sketch_url in sketch_url_list]
+#         print('Total ' + mode + ' Sample {}'.format(len(self.labels)))
+
+#         self.train_transform = get_ransform('Train')
+#         self.valid_transform = get_ransform('Valid')
+#         self.test_transform = get_ransform('Test')
+
+#     def __len__(self):
+#         return len(self.img_urls)
+
+#     def __getitem__(self, item):
+#         sketch_url = self.img_urls[item]
+#         coordinate_url = self.coordinate_urls[item]
+#         label = self.labels[item]
+#         # img = Image.open(sketch_url, 'r').resize((224, 224))
+
+#         seq = np.load(coordinate_url, encoding='latin1', allow_pickle=True)
+#         if seq.dtype == 'object':
+#             seq = seq[0]
+#         assert seq.shape == (100, 4)
+#         seq = seq.astype('float32')
+#         seq = seq[:, 0:3]
+#         index_neg = np.where(seq == -1)[0]
+        
+
+#         if len(index_neg) == 0:
+#             seq = off2abs(seq)
+
+#             if random.uniform(0, 1) > 0.5 and self.mode == 'Train':
+#                seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
+
+#             if self.mode == 'Train':
+#                seq[:, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:, 0:2]/256)*256
+
+#             img = draw_three(seq, stroke_flag=0)
+#             seq[:, 0:2] = seq[:, 0:2] / 256
+
+#         else:
+#             index_neg = index_neg[0]
+#             seq[:index_neg,:] = off2abs(seq)[:index_neg,:]
+
+#             if random.uniform(0, 1) > 0.5 and self.mode == 'Train':
+#                seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
+#             if self.mode == 'Train':
+#                seq[:index_neg, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:index_neg, 0:2]/256)*256
+
+#             img = draw_three(seq, stroke_flag=0)
+#             seq[:index_neg, 0:2] = seq[:index_neg, 0:2] / 256
+
+
+#         if self.mode == 'Train':
+#             sketch_img = self.train_transform(img)
+#         elif self.mode == 'Test':
+#             sketch_img = self.test_transform(img)
+#         elif self.mode == 'Valid':
+#             sketch_img = self.valid_transform(img)
+#         sample = {'sketch_img': sketch_img, 'sketch_points': seq,
+#                   'sketch_label': label, 'seq_len': 100}
+#         return sample
+
 class Quickdraw414k(data.Dataset):
 
     def __init__(self, mode='Train'):
@@ -244,17 +329,68 @@ class Quickdraw414k(data.Dataset):
             sketch_list = "Data/QuickDraw414k/picture_files/tiny_val_set.txt"
             path_root1 = 'Data/QuickDraw414k/picture_files/val'
             path_root2 = 'Data/QuickDraw414k/coordinate_files/val'
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
 
-        with open(sketch_list) as sketch_url_file:
-            sketch_url_list = sketch_url_file.readlines()
-            self.img_urls = [os.path.join(path_root1, sketch_url.strip().split(' ')[
-                0]) for sketch_url in sketch_url_list]
-            self.coordinate_urls = [os.path.join(path_root2, (sketch_url.strip(
-            ).split(' ')[0]).replace('png', 'npy')) for sketch_url in sketch_url_list]
+        # ------- 新增：收集当前 root 下实际存在的类别文件夹 -------
+        exist_cats_img = set([d for d in os.listdir(path_root1) if os.path.isdir(os.path.join(path_root1, d))]) \
+                         if os.path.isdir(path_root1) else set()
+        exist_cats_seq = set([d for d in os.listdir(path_root2) if os.path.isdir(os.path.join(path_root2, d))]) \
+                         if os.path.isdir(path_root2) else set()
+        exist_cats = exist_cats_img & exist_cats_seq  # 两边都存在才保留
 
-            self.labels = [int(sketch_url.strip().split(' ')[-1])
-                           for sketch_url in sketch_url_list]
-        print('Total ' + mode + ' Sample {}'.format(len(self.labels)))
+        # ------- 读取 list 并过滤 -------
+        img_urls = []
+        coordinate_urls = []
+        labels = []
+
+        skipped_cat = 0
+        skipped_file = 0
+        total_lines = 0
+
+        with open(sketch_list, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                total_lines += 1
+
+                # 更稳：从右边切一刀拿 label，避免路径里有空格被 split 搞坏
+                try:
+                    rel_path, lab_str = line.rsplit(' ', 1)
+                    lab = int(lab_str)
+                except Exception:
+                    # 格式不对就跳过
+                    skipped_file += 1
+                    continue
+
+                # rel_path 形如： "banana/banana_1989.png"
+                cat = rel_path.split('/')[0]
+                if cat not in exist_cats:
+                    skipped_cat += 1
+                    continue
+
+                img_url = os.path.join(path_root1, rel_path)
+
+                # 更稳的后缀替换：只替换最后的 .png
+                base, ext = os.path.splitext(rel_path)
+                coordinate_rel = base + ".npy"
+                coordinate_url = os.path.join(path_root2, coordinate_rel)
+
+                # 文件存在性过滤（你现在缺 banana 就会在这里被过滤）
+                if (not os.path.exists(img_url)) or (not os.path.exists(coordinate_url)):
+                    skipped_file += 1
+                    continue
+
+                img_urls.append(img_url)
+                coordinate_urls.append(coordinate_url)
+                labels.append(lab)
+
+        self.img_urls = img_urls
+        self.coordinate_urls = coordinate_urls
+        self.labels = labels
+
+        print(f"Total {mode} Sample {len(self.labels)} (from {total_lines}, skipped_cat={skipped_cat}, skipped_file={skipped_file})")
 
         self.train_transform = get_ransform('Train')
         self.valid_transform = get_ransform('Valid')
@@ -267,7 +403,6 @@ class Quickdraw414k(data.Dataset):
         sketch_url = self.img_urls[item]
         coordinate_url = self.coordinate_urls[item]
         label = self.labels[item]
-        # img = Image.open(sketch_url, 'r').resize((224, 224))
 
         seq = np.load(coordinate_url, encoding='latin1', allow_pickle=True)
         if seq.dtype == 'object':
@@ -276,32 +411,31 @@ class Quickdraw414k(data.Dataset):
         seq = seq.astype('float32')
         seq = seq[:, 0:3]
         index_neg = np.where(seq == -1)[0]
-        
 
         if len(index_neg) == 0:
             seq = off2abs(seq)
 
             if random.uniform(0, 1) > 0.5 and self.mode == 'Train':
-               seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
+                seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
 
             if self.mode == 'Train':
-               seq[:, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:, 0:2]/256)*256
+                seq[:, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:, 0:2]/256)*256
 
             img = draw_three(seq, stroke_flag=0)
             seq[:, 0:2] = seq[:, 0:2] / 256
 
         else:
             index_neg = index_neg[0]
-            seq[:index_neg,:] = off2abs(seq)[:index_neg,:]
+            seq[:index_neg, :] = off2abs(seq)[:index_neg, :]
 
             if random.uniform(0, 1) > 0.5 and self.mode == 'Train':
-               seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
+                seq[:, 0:2] = SketchUtil.random_affine_transform(seq[:, 0:2], scale_factor=0.2, rot_thresh=45.0)
+
             if self.mode == 'Train':
-               seq[:index_neg, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:index_neg, 0:2]/256)*256
+                seq[:index_neg, 0:2] = SketchUtil.Q414k_horizontal_flip(seq[:index_neg, 0:2]/256)*256
 
             img = draw_three(seq, stroke_flag=0)
             seq[:index_neg, 0:2] = seq[:index_neg, 0:2] / 256
-
 
         if self.mode == 'Train':
             sketch_img = self.train_transform(img)
@@ -309,10 +443,14 @@ class Quickdraw414k(data.Dataset):
             sketch_img = self.test_transform(img)
         elif self.mode == 'Valid':
             sketch_img = self.valid_transform(img)
-        sample = {'sketch_img': sketch_img, 'sketch_points': seq,
-                  'sketch_label': label, 'seq_len': 100}
-        return sample
 
+        sample = {
+            'sketch_img': sketch_img,
+            'sketch_points': seq,
+            'sketch_label': label,
+            'seq_len': 100
+        }
+        return sample
 
 def collate_self(batch):
     batch_mod = {'sketch_img': [], 'sketch_points': [],
